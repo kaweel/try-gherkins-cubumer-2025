@@ -1,0 +1,17 @@
+{
+  "request": {
+    "url": "/login",
+    "method": "POST",
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$[?(@.username != 'kaweel' || @.password != 'h@ndS0m3')]"
+      }
+    ]
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}

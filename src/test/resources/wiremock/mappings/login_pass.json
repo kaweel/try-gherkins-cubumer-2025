@@ -1,0 +1,18 @@
+{
+  "request": {
+    "url": "/login",
+    "method": "POST",
+    "bodyPatterns": [
+      {
+        "equalToJson": "{\"username\":\"kaweel\",\"password\":\"h@ndS0m3\"}"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "login_pass.json"
+  }
+}
