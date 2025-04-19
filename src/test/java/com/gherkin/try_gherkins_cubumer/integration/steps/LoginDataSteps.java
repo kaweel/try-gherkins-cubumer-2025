@@ -2,7 +2,6 @@ package com.gherkin.try_gherkins_cubumer.integration.steps;
 
 import com.gherkin.try_gherkins_cubumer.AuthRequest;
 import com.gherkin.try_gherkins_cubumer.AuthResponse;
-import com.github.tomakehurst.wiremock.WireMockServer;
 
 import io.cucumber.java.AfterAll;
 import io.cucumber.java.Before;
@@ -11,8 +10,6 @@ import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import wiremock.com.google.common.collect.ImmutableList;
-
-import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -24,12 +21,16 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.testcontainers.containers.BindMode;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.utility.DockerImageName;
 
-public class LoginSteps {
+public class LoginDataSteps {
 
-    private static WireMockServer mockServer;
+    private static GenericContainer<?> mockServer;
     private static RestTemplate restTemplate;
-    private static int port;
+    private static String baseUrl;
     private HttpHeaders httpHeaders;
     private AuthRequest authRequest;
     private HttpEntity<AuthRequest> httpEntity;
@@ -37,20 +38,23 @@ public class LoginSteps {
     private ResponseEntity<AuthResponse> responseEntity;
     private HttpClientErrorException httpClientErrorException;
 
+    @SuppressWarnings("resource")
     @BeforeAll
     public static void beforeAllScenarioRun() {
         System.out.println("Starting mock server...");
-        mockServer = new WireMockServer(options().dynamicPort()
-                .usingFilesUnderDirectory("src/test/resources/wiremock"));
+        mockServer = new GenericContainer<>(DockerImageName.parse("wiremock/wiremock:3.12.1"))
+                .withExposedPorts(8080)
+                .withFileSystemBind("src/test/resources/wiremock", "/home/wiremock", BindMode.READ_ONLY)
+                .waitingFor(Wait.forHealthcheck()); 
         mockServer.start();
-        port = mockServer.port();
+        baseUrl = "http://" + mockServer.getHost() + ":" + mockServer.getMappedPort(8080);
         restTemplate = new RestTemplate();
     }
 
     @AfterAll
     public static void afterAllScenarioFinish() {
         System.out.println("Stopping mock server...");
-        if (mockServer != null && mockServer.isRunning()) {
+        if (mockServer != null && mockServer.isHealthy()) {
             mockServer.stop();
         }
     }
@@ -59,49 +63,41 @@ public class LoginSteps {
     public void beforeEachScenarioRun() {
         httpHeaders = new HttpHeaders();
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
-        authRequest = new AuthRequest("kaweel", "h@ndS0m3");
+        authRequest = new AuthRequest();
         authResponse = new AuthResponse(1, "Kawee Handsome",
                 ImmutableList.of("Mr.Ngamwongwan", "Who wanna be good guys"));
     }
 
-    @Given("the user has an invalid username")
-    public void the_user_has_an_invalid_username() {
-        authRequest.setUsername("usr");
+    @Given("the user has the following credentials username {string} and password {string}")
+    public void the_user_has_the_following_credentials_username_and_password(String username, String password) {
+        authRequest.setUsername(username);
+        authRequest.setPassword(password);
     }
 
-    @When("the user sends a login request")
-    public void the_user_sends_a_login_request() {
+    @When("the user sends a data login request")
+    public void the_user_sends_a_data_login_request() {
         httpEntity = new HttpEntity<>(authRequest, httpHeaders);
         try {
-            responseEntity = restTemplate.postForEntity("http://127.0.0.1:" + port + "/login", httpEntity,
+            responseEntity = restTemplate.postForEntity(baseUrl + "/login", httpEntity,
                     AuthResponse.class);
         } catch (HttpClientErrorException e) {
             httpClientErrorException = e;
         }
     }
 
-    @Then("the system should return an error response")
-    public void the_system_should_return_an_error_response() {
-        assertNull(responseEntity);
-        assertEquals(httpClientErrorException.getStatusCode(), HttpStatus.UNAUTHORIZED);
-        assertNull(httpClientErrorException.getResponseBodyAs(AuthResponse.class));
-    }
-
-    @Given("the user has an invalid password")
-    public void the_user_has_an_invalid_password() {
-        authRequest.setPassword("u@1y");
-    }
-
-    @Given("the user has valid credential")
-    public void the_user_has_valid_credential() {
-        authRequest.setUsername("kaweel");
-        authRequest.setPassword("h@ndS0m3");
-    }
-
-    @Then("the system should return a success response")
-    public void the_system_should_return_a_success_response() {
-        assertNotNull(responseEntity);
-        assertEquals(responseEntity.getStatusCode(), HttpStatus.OK);
-        assertEquals(responseEntity.getBody(), authResponse);
+    @Then("the system should return response status {string}")
+    public void the_system_should_return_response_status(String status) {
+        switch (status) {
+            case "OK":
+                assertNotNull(responseEntity);
+                assertEquals(responseEntity.getStatusCode(), HttpStatus.OK);
+                assertEquals(responseEntity.getBody(), authResponse);
+                break;
+            default:
+                assertNull(responseEntity);
+                assertEquals(httpClientErrorException.getStatusCode(), HttpStatus.UNAUTHORIZED);
+                assertNull(httpClientErrorException.getResponseBodyAs(AuthResponse.class));
+                break;
+        }
     }
 }

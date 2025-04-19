@@ -1,4 +1,4 @@
-Feature: User Login API
+Feature: Login API
 
     Scenario: Login failed with invalid username
         Given the user has an invalid username
